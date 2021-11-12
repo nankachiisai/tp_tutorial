@@ -4,4 +4,4 @@ This repository has Verilog sources to run on Tang Primer. Those maybe contained
 
 ## Features
 - Pulse Width Modulation(PWM) controller
-- UART controller (transmission only)
+- UART controller
