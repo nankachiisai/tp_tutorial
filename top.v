@@ -5,7 +5,8 @@ module top (
     GREEN_N,
     BLUE_N,
 
-    U_TX
+    U_TX,
+    U_RX
 );
     input CLK;
     input RST_N;
@@ -14,13 +15,15 @@ module top (
     output BLUE_N;
 
     output U_TX;
+    input U_RX;
 
     wire R_o;
     wire G_o;
     wire B_o;
-    reg [24:0] counter;
     reg start;
     wire waitflg;
+    wire [7:0] rxtotx;
+    wire recvd;
 
     PWM R(
         .CLK(CLK),
@@ -46,24 +49,24 @@ module top (
     UART_Tx ut(
         .CLK(CLK),
         .RST_N(RST_N),
-        .data_i(8'h41),
+        .data_i(rxtotx),
         .signal_o(U_TX),
         .start(start),
         .waitflg(waitflg)
     );
 
-    always @(posedge CLK or negedge RST_N) begin
-        if (~RST_N) begin
-            counter <= 0;
-        end else begin
-            counter <= counter + 1;
-        end
-    end
+    UART_Rx rt(
+        .CLK(CLK),
+        .RST_N(RST_N),
+        .signal_i(U_RX),
+        .data_o(rxtotx),
+        .received(recvd)
+    );
 
     always @(posedge CLK or negedge RST_N) begin
         if (~RST_N) begin
             start <= 1'b0;
-        end else if (&counter & ~waitflg) begin
+        end else if (~waitflg & recvd) begin
             start <= 1'b1;
         end else begin
             start <= 1'b0;
@@ -94,14 +97,6 @@ module PWM (
             step <= 0;
         end else begin
             step <= step_i;
-        end
-    end
-
-    always @(posedge CLK or negedge RST_N) begin
-        if (~RST_N) begin
-            counter <= 0;
-        end else begin
-            counter <= counter + 1;
         end
     end
 
@@ -221,7 +216,7 @@ module UART_Rx (
     signal_i,
     data_o,
 
-    recieved
+    received
 );
     input CLK;
     input RST_N;
@@ -229,5 +224,105 @@ module UART_Rx (
     input signal_i;
     output [7:0] data_o;
 
-    output recieved;
+    output received;
+
+    reg [1:0] state;
+    reg [7:0] counter;
+    reg [7:0] fetch_counter;
+    reg fetch_counter2;
+    reg [3:0] bits;
+    reg [9:0] shiftreg;
+    reg prevsig;
+    wire en;
+    wire fetch_en;
+
+    parameter IDLE = 2'b00;
+    parameter RECEIVE = 2'b01;
+    parameter DONE = 2'b10;
+    parameter boudrate = 208; // 115200bps @ 25MHz Clock
+
+    always @(posedge CLK or negedge RST_N) begin
+        if (~RST_N) begin
+            state <= IDLE;
+        end else if (state == IDLE && ~signal_i && prevsig) begin
+            state <= RECEIVE;
+        end else if (bits == 10) begin
+            state <= DONE;
+        end else if (state == DONE) begin
+            state <= IDLE;
+        end
+    end
+
+    always @(posedge CLK or negedge RST_N) begin
+        if (~RST_N) begin
+            counter <= 0;
+        end else if (state == RECEIVE) begin
+            if (counter == boudrate) begin
+                counter <= 0;
+            end else begin
+                counter <= counter + 1;
+            end
+        end else begin
+            counter <= 0;
+        end
+    end
+
+    always @(posedge CLK or negedge RST_N) begin
+        if (~RST_N) begin
+            fetch_counter <= boudrate >> 1;
+        end else if (state == RECEIVE) begin
+            if (fetch_counter != 0) begin
+                fetch_counter <= fetch_counter - 1;
+            end else begin
+                fetch_counter <= boudrate >> 1;
+            end
+        end else begin
+            fetch_counter <= boudrate >> 1;
+        end
+    end
+
+    always @(posedge CLK or negedge RST_N) begin
+        if (~RST_N) begin
+            fetch_counter2 <= 0;
+        end else if (state == RECEIVE) begin
+            if (fetch_counter == 0) begin
+                fetch_counter2 <= fetch_counter2 + 1;
+            end
+        end else begin
+            fetch_counter2 <= 0;
+        end
+    end
+
+    always @(posedge CLK or negedge RST_N) begin
+        if (~RST_N) begin
+            bits <= 0;
+        end else if (fetch_en) begin
+            bits <= bits + 1;
+        end else if (bits == 10) begin
+            bits <= 0;
+        end
+    end
+
+    always @(posedge CLK or negedge RST_N) begin
+        if (~RST_N) begin
+            shiftreg <= 10'h3ff;
+        end else if (fetch_en) begin
+            shiftreg <= {signal_i, shiftreg[9:1]};
+        end else begin
+            ;
+        end
+    end
+
+    always @(posedge CLK or negedge RST_N) begin
+        if (~RST_N) begin
+            prevsig <= 1'b1;
+        end else begin
+            prevsig <= signal_i;
+        end
+    end
+
+    assign en = (counter == boudrate) ? 1'b1 : 1'b0;
+    assign fetch_en = ((fetch_counter == boudrate >> 1) & (fetch_counter2 == 1)) ? 1'b1 : 1'b0;
+    assign data_o = shiftreg[8:1];
+    assign received = (state == DONE) ? 1'b1 : 1'b0;
 endmodule
