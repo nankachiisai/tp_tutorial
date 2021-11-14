@@ -123,7 +123,7 @@ module UART_Tx (
     output waitflg;
 
     reg state;
-    reg [7:0] counter;
+    reg [12:0] counter;
     reg [3:0] bits;
     reg waitflg_r;
     reg [9:0] shiftreg;
@@ -131,7 +131,7 @@ module UART_Tx (
 
     parameter IDLE = 1'b0;
     parameter SEND = 1'b1;
-    parameter boudrate = 208; // 115200bps @ 25MHz Clock
+    parameter boudrate = 2604; // 9600bps @ 25MHz Clock
 
     always @(posedge CLK or negedge RST_N) begin
         if (~RST_N) begin
@@ -227,8 +227,8 @@ module UART_Rx (
     output received;
 
     reg [1:0] state;
-    reg [7:0] counter;
-    reg [7:0] fetch_counter;
+    reg [12:0] counter;
+    reg [12:0] fetch_counter;
     reg fetch_counter2;
     reg [3:0] bits;
     reg [9:0] shiftreg;
@@ -239,7 +239,7 @@ module UART_Rx (
     parameter IDLE = 2'b00;
     parameter RECEIVE = 2'b01;
     parameter DONE = 2'b10;
-    parameter boudrate = 208; // 115200bps @ 25MHz Clock
+    parameter boudrate = 2604; // 9600bps @ 25MHz Clock
 
     always @(posedge CLK or negedge RST_N) begin
         if (~RST_N) begin

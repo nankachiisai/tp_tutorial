@@ -10,10 +10,10 @@ module top_test (
     wire U_TX;
     reg U_RX;
     reg [9:0] shiftreg;
-    reg [7:0] tmpreg;
+    reg [9:0] tmpreg;
 
     parameter CLK_T = 40;
-    parameter BOUDRATE = 208;
+    parameter BOUDRATE = 2604;
 
     top t(
         .CLK(CLK),
@@ -42,7 +42,8 @@ module top_test (
 
 
         // RX Test
-        #100 U_RX = shiftreg[9];
+        repeat (1000) @(posedge CLK);
+        U_RX = shiftreg[9];
 
         repeat(BOUDRATE) @(posedge CLK);
         U_RX = shiftreg[8];
@@ -71,15 +72,15 @@ module top_test (
         repeat(BOUDRATE) @(posedge CLK);
         U_RX = shiftreg[0];
 
-        repeat(BOUDRATE) @(posedge CLK);
-        U_RX = 1'b1;
-
         // TX Test
-        t.start = 1'b1;
-        #1 t.start = 1'b0;
-
         repeat(BOUDRATE) @(posedge CLK);
         repeat(BOUDRATE / 2) @(posedge CLK);
+        tmpreg[9] = U_TX;
+
+        repeat(BOUDRATE) @(posedge CLK);
+        tmpreg[8] = U_TX;
+
+        repeat(BOUDRATE) @(posedge CLK);
         tmpreg[7] = U_TX;
 
         repeat(BOUDRATE) @(posedge CLK);
@@ -103,10 +104,8 @@ module top_test (
         repeat(BOUDRATE) @(posedge CLK);
         tmpreg[0] = U_TX;
 
-        repeat(BOUDRATE) @(posedge CLK);
-
         @(negedge t.waitflg);
-        if (shiftreg[8:1] == tmpreg) begin
+        if (shiftreg[8:1] == tmpreg[8:1]) begin
             $display("passed!");
         end else begin
             $display("failed! 0x%03x 0x%03x", shiftreg[8:1], tmpreg);
